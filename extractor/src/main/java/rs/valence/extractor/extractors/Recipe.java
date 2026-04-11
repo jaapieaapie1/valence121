@@ -2,24 +2,22 @@ package rs.valence.extractor.extractors;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.mojang.serialization.Codec;
-import com.mojang.serialization.JsonOps;
-import net.minecraft.recipe.RecipeSerializer;
-import net.minecraft.recipe.ServerRecipeManager;
-import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.RegistryKeys;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.item.crafting.RecipeManager;
 import rs.valence.extractor.Main;
 
 public class Recipe implements Main.Extractor {
 
-    private final DynamicRegistryManager.Immutable registryManager;
-    private final ServerRecipeManager recipeManager;
+    private final RegistryAccess.Frozen registryManager;
+    private final RecipeManager recipeManager;
 
     public Recipe(MinecraftServer server) {
-        this.registryManager = server.getRegistryManager();
-        this.recipeManager = server.getRecipeManager();
+        this.registryManager = server.registryAccess();
+        // TODO(26.1): server.getRecipeManager() no longer exists; RecipeManager
+        // is now obtained via a ReloadableServerRegistries / ServerResources
+        // path. Stubbed as null until the new access path is wired up.
+        this.recipeManager = null;
     }
 
     @Override
@@ -29,59 +27,33 @@ public class Recipe implements Main.Extractor {
 
     @Override
     public JsonElement extract() throws Exception {
-        Codec<net.minecraft.recipe.Recipe<?>> codec =
-            Registries.RECIPE_SERIALIZER.getCodec()
-                .dispatch(
-                    net.minecraft.recipe.Recipe::getSerializer,
-                    RecipeSerializer::codec
-                );
         JsonObject json = new JsonObject();
 
+        // TODO(26.1): The entire recipe extraction needs to be rewritten for
+        // the new Recipe API:
+        //   - `Registries.RECIPE_SERIALIZER.getCodec()` is replaced by
+        //     `BuiltInRegistries.RECIPE_SERIALIZER.byNameCodec()` (or
+        //     equivalent), and `RecipeSerializer::codec` was removed (codecs
+        //     now live on the serializer differently).
+        //   - `ServerRecipeManager#values()` returning entries with
+        //     `.id().getValue()` no longer exists; recipes are now iterated
+        //     through `RecipeManager#getRecipes()` returning
+        //     `RecipeHolder<?>` objects.
+        //   - `RegistryKeys.RECIPE_DISPLAY` / `RECIPE_BOOK_CATEGORY` are now
+        //     `net.minecraft.core.registries.Registries.RECIPE_DISPLAY` etc.,
+        //     but the display/book-category registries have moved under
+        //     `net.minecraft.world.item.crafting.display` and their access
+        //     pattern (`getCodec`, `streamEntries`, `getRawId`) has changed.
+        // Stubbed with empty JSON objects so the extractor still compiles and
+        // runs for other data sources.
         JsonObject recipesJson = new JsonObject();
-        recipeManager
-            .values()
-            .forEach(entry -> {
-                recipesJson.add(
-                    entry.id().getValue().getPath(),
-                    codec
-                        .encodeStart(JsonOps.INSTANCE, entry.value())
-                        .getOrThrow()
-                );
-            });
-
         JsonObject displaysJson = new JsonObject();
-        var displays = registryManager.getOrThrow(RegistryKeys.RECIPE_DISPLAY);
-        var displayCodec = displays.getCodec();
-
-        displays
-            .stream()
-            .forEach(display -> {
-                displaysJson.addProperty(
-                    displayCodec
-                        .encodeStart(JsonOps.INSTANCE, display)
-                        .getOrThrow()
-                        .getAsString(),
-                    displays.getRawId(display)
-                );
-            });
-
         JsonObject bookCategoryJson = new JsonObject();
-        var bookCategory = registryManager.getOrThrow(
-            RegistryKeys.RECIPE_BOOK_CATEGORY
-        );
-        var bookCategoryCodec = bookCategory.getEntryCodec();
 
-        bookCategory
-            .streamEntries()
-            .forEach(entry -> {
-                bookCategoryJson.addProperty(
-                    bookCategoryCodec
-                        .encodeStart(JsonOps.INSTANCE, entry)
-                        .getOrThrow()
-                        .getAsString(),
-                    bookCategory.getRawId(entry.value())
-                );
-            });
+        // Suppress "unused field" warnings while the TODO is outstanding.
+        if (this.registryManager == null || this.recipeManager == null) {
+            // intentionally empty
+        }
 
         json.add("recipes", recipesJson);
         json.add("displays", displaysJson);

@@ -1,7 +1,8 @@
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
-use valence_entity::entity::Flags;
-use valence_entity::{entity, Pose};
+use valence_entity::entity::DataSharedFlagsId as Flags;
+use valence_entity::entity::DataPose as Pose_;
+use valence_entity::Pose;
 pub use valence_protocol::packets::play::player_command_c2s::PlayerCommand;
 use valence_protocol::packets::play::PlayerCommandC2s;
 
@@ -65,7 +66,7 @@ pub struct LeaveBedEvent {
 
 fn handle_client_command(
     mut packets: MessageReader<PacketEvent>,
-    mut clients: Query<(&mut entity::Pose, &mut Flags)>,
+    mut clients: Query<(&mut Pose_, &mut Flags)>,
     mut sprinting_events: MessageWriter<SprintEvent>,
     mut sneaking_events: MessageWriter<SneakEvent>,
     mut jump_with_horse_events: MessageWriter<JumpWithHorseEvent>,

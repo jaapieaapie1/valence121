@@ -7,8 +7,8 @@ use valence::network::ConnectionMode;
 use valence::prelude::*;
 use valence::status_effects::{AttributeModifier, StatusEffect};
 use valence_server::entity::attributes::{EntityAttribute, EntityAttributes};
-use valence_server::entity::entity::Flags;
-use valence_server::entity::living::{Absorption, Health};
+use valence_server::entity::entity::DataSharedFlagsId as Flags;
+use valence_server::entity::living::{Absorption, DataHealthId as Health};
 use valence_server::status_effect::{StatusEffectAdded, StatusEffectRemoved};
 
 const SPAWN_Y: i32 = 64;

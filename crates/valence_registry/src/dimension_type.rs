@@ -6,6 +6,7 @@
 //!   break invariants within instances and clients! Make sure there are no
 //!   instances or clients spawned before mutating.
 
+use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 
 use bevy_app::prelude::*;
@@ -121,16 +122,10 @@ impl DerefMut for DimensionTypeRegistry {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-#[serde(deny_unknown_fields)]
 pub struct DimensionType {
     pub ambient_light: f32,
-    pub bed_works: bool,
     pub coordinate_scale: f64,
-    pub effects: DimensionEffects,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fixed_time: Option<i32>,
     pub has_ceiling: bool,
-    pub has_raids: bool,
     pub has_skylight: bool,
     pub height: i32,
     pub infiniburn: String,
@@ -138,22 +133,34 @@ pub struct DimensionType {
     pub min_y: i32,
     pub monster_spawn_block_light_limit: i32,
     pub monster_spawn_light_level: MonsterSpawnLightLevel,
-    pub natural: bool,
-    pub piglin_safe: bool,
-    pub respawn_anchor_works: bool,
-    pub ultrawarm: bool,
+    // 26.1 dropped most of the boolean toggles in favor of richer fields. Each
+    // is wrapped in `Option<...>` + `serde(default)` so we can deserialize the
+    // current registry codec without modeling every variant explicitly.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub has_ender_dragon_fight: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub has_fixed_time: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub cardinal_light: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub skybox: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub timelines: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub default_clock: Option<String>,
+    /// Free-form attribute map introduced in 26.1 (e.g.
+    /// `minecraft:visual/sky_color`, `minecraft:audio/background_music`).
+    /// Stored opaquely so we can round-trip without modeling every entry.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub attributes: BTreeMap<String, serde_json::Value>,
 }
 
 impl Default for DimensionType {
     fn default() -> Self {
         Self {
             ambient_light: 0.0,
-            bed_works: true,
             coordinate_scale: 1.0,
-            effects: DimensionEffects::default(),
-            fixed_time: None,
             has_ceiling: false,
-            has_raids: true,
             has_skylight: true,
             height: 384,
             infiniburn: "#minecraft:infiniburn_overworld".into(),
@@ -161,24 +168,15 @@ impl Default for DimensionType {
             min_y: -64,
             monster_spawn_block_light_limit: 0,
             monster_spawn_light_level: MonsterSpawnLightLevel::Int(7),
-            natural: true,
-            piglin_safe: false,
-            respawn_anchor_works: false,
-            ultrawarm: false,
+            has_ender_dragon_fight: Some(false),
+            has_fixed_time: None,
+            cardinal_light: None,
+            skybox: None,
+            timelines: None,
+            default_clock: None,
+            attributes: BTreeMap::new(),
         }
     }
-}
-
-/// Determines what skybox/fog effects to use in dimensions.
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub enum DimensionEffects {
-    #[serde(rename = "minecraft:overworld")]
-    #[default]
-    Overworld,
-    #[serde(rename = "minecraft:the_nether")]
-    TheNether,
-    #[serde(rename = "minecraft:the_end")]
-    TheEnd,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize)]

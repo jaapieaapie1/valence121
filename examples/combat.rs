@@ -171,9 +171,11 @@ fn handle_combat_events(
 
         attacker.state.has_bonus_knockback = false;
 
-        victim.client.trigger_status(EntityStatus::PlayAttackSound);
+        // 26.1 dropped the standalone PlayAttackSound entity status; fall back
+        // to StartAttacking, which is the closest still-defined analogue.
+        victim.client.trigger_status(EntityStatus::StartAttacking);
 
-        victim.statuses.trigger(EntityStatus::PlayAttackSound);
+        victim.statuses.trigger(EntityStatus::StartAttacking);
     }
 }
 

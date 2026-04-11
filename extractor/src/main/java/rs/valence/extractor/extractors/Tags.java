@@ -9,24 +9,25 @@ import com.mojang.datafixers.util.Pair;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-import net.minecraft.registry.CombinedDynamicRegistries;
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.SerializableRegistries;
-import net.minecraft.registry.ServerDynamicRegistryType;
-import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.Identifier;
 import rs.valence.extractor.Main;
 import rs.valence.extractor.RegistryKeyComparator;
 
 public class Tags implements Main.Extractor {
 
-    private final CombinedDynamicRegistries<
-        ServerDynamicRegistryType
-    > dynamicRegistryManager;
+    private final RegistryAccess.Frozen dynamicRegistryManager;
 
     public Tags(MinecraftServer server) {
-        this.dynamicRegistryManager = server.getCombinedDynamicRegistries();
+        // TODO(26.1): yarn's `server.getCombinedDynamicRegistries()` returned a
+        // `CombinedDynamicRegistries<ServerDynamicRegistryType>` which exposed
+        // the layered registry stack. In Mojang-mapped 26.1 we use the frozen
+        // `RegistryAccess` directly; this is sufficient for tag serialization
+        // because tags live on the individual registries.
+        this.dynamicRegistryManager = server.registryAccess();
     }
 
     @Override
@@ -39,9 +40,7 @@ public class Tags implements Main.Extractor {
         var tagsJson = new JsonObject();
 
         final var registryTags =
-            SerializableRegistries.streamRegistryManagerEntries(
-                this.dynamicRegistryManager
-            )
+            this.dynamicRegistryManager.registries()
                 .map(registry ->
                     Pair.of(registry.key(), serializeTags(registry.value()))
                 )
@@ -56,7 +55,7 @@ public class Tags implements Main.Extractor {
                 );
 
         for (var registry : registryTags.entrySet()) {
-            var registryIdent = registry.getKey().getValue().toString();
+            var registryIdent = registry.getKey().identifier().toString();
             var tagGroupTagsJson = new JsonObject();
 
             for (var tag : registry.getValue().entrySet()) {
@@ -76,24 +75,23 @@ public class Tags implements Main.Extractor {
     ) {
         TreeMap<Identifier, JsonArray> map = new TreeMap<>();
         registry
-                .streamTags()
-                .map(key -> Pair.of(key, registry.iterateEntries(key.getTag())))
-            .forEach(pair -> {
-                var registryEntryList = Lists.newArrayList(pair.getSecond());
-                JsonArray intList = new JsonArray(registryEntryList.size());
-                for (RegistryEntry<T> registryEntry : registryEntryList) {
-                    if (
-                        RegistryEntry.Type.REFERENCE != registryEntry.getType()
-                    ) {
-                        throw new IllegalStateException(
-                            "Can't serialize unregistered value " +
-                            registryEntry
-                        );
+                .getTags()
+                .forEach(named -> {
+                    var registryEntryList = Lists.newArrayList(named);
+                    JsonArray intList = new JsonArray(registryEntryList.size());
+                    for (Holder<T> registryEntry : registryEntryList) {
+                        if (
+                            Holder.Kind.REFERENCE != registryEntry.kind()
+                        ) {
+                            throw new IllegalStateException(
+                                "Can't serialize unregistered value " +
+                                registryEntry
+                            );
+                        }
+                        intList.add(registry.getId(registryEntry.value()));
                     }
-                    intList.add(registry.getRawId(registryEntry.value()));
-                }
-                map.put(pair.getFirst().getTag().id(), intList);
-            });
+                    map.put(named.key().location(), intList);
+                });
         return map;
     }
 }

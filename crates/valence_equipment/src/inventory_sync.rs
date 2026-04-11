@@ -1,6 +1,6 @@
 use valence_inventory::player_inventory::PlayerInventory;
 use valence_inventory::{HeldItem, Inventory, UpdateSelectedSlotEvent};
-use valence_server::entity::player::PlayerEntity;
+use valence_server::entity::player::Player as PlayerEntity;
 
 use super::*;
 

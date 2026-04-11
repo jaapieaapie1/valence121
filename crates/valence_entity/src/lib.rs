@@ -550,12 +550,101 @@ pub enum WolfSoundKind {
     Sad,
 }
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum CatSoundKind {
+    #[default]
+    Classic,
+    Royal,
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum CowSoundKind {
+    #[default]
+    Classic,
+    Moody,
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum ChickenSoundKind {
+    #[default]
+    Classic,
+    Picky,
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum PigSoundKind {
+    Big,
+    #[default]
+    Classic,
+    Mini,
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum ZombieNautilusKind {
+    #[default]
+    Temperate,
+    Warm,
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
 pub enum ArmadilloState {
     #[default]
     Idle,
     Rolling,
     Scared,
     Unrolling,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum CopperGolemState {
+    #[default]
+    Idle,
+    GettingItem,
+    GettingNoItem,
+    DroppingItem,
+    DroppingNoItem,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum WeatheringCopperState {
+    #[default]
+    Unaffected,
+    Exposed,
+    Weathered,
+    Oxidized,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Encode, Decode)]
+pub enum HumanoidArm {
+    Left,
+    Right,
+}
+
+impl Default for HumanoidArm {
+    fn default() -> Self {
+        Self::Right
+    }
+}
+
+/// Game-profile reference attached to player heads and similar items.
+///
+/// In 26.1 the wire encoding is a flag byte followed by optional name/UUID and
+/// the property list. We currently surface only the resolved name; properties
+/// and UUIDs are encoded as absent.
+#[derive(Clone, Default, PartialEq, Eq, Debug)]
+pub struct ResolvableProfile {
+    pub name: String,
+}
+
+impl Encode for ResolvableProfile {
+    fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
+        // Optional name.
+        if self.name.is_empty() {
+            false.encode(&mut w)?;
+        } else {
+            true.encode(&mut w)?;
+            self.name.encode(&mut w)?;
+        }
+        // Optional UUID.
+        false.encode(&mut w)?;
+        // Property list (empty).
+        VarInt(0).encode(&mut w)?;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]

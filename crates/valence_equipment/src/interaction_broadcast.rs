@@ -1,5 +1,5 @@
 use valence_inventory::{HeldItem, Inventory, PlayerAction};
-use valence_server::entity::living::LivingFlags;
+use valence_server::entity::living::DataLivingEntityFlags as LivingFlags;
 use valence_server::event_loop::PacketEvent;
 use valence_server::interact_item::InteractItemEvent;
 use valence_server::protocol::packets::play::PlayerActionC2s;

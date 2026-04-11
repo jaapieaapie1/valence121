@@ -1,4 +1,4 @@
-use valence_server::entity::living::Health;
+use valence_server::entity::living::DataHealthId as Health;
 use valence_server::entity::player::{Food, Saturation};
 use valence_server::protocol::packets::play::SetHealthS2c;
 use valence_server::protocol::VarInt;

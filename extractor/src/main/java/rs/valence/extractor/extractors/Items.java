@@ -5,23 +5,24 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
 import java.util.Optional;
-import net.minecraft.component.ComponentMap;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.EnchantableComponent;
-import net.minecraft.item.Item;
-import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.RegistryOps;
-import net.minecraft.registry.tag.DamageTypeTags;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.enchantment.Enchantable;
 import rs.valence.extractor.Main;
 
 public class Items implements Main.Extractor {
 
-    private final DynamicRegistryManager.Immutable registryManager;
+    private final RegistryAccess.Frozen registryManager;
 
     public Items(MinecraftServer server) {
-        this.registryManager = server.getRegistryManager();
+        this.registryManager = server.registryAccess();
     }
 
     @Override
@@ -34,55 +35,53 @@ public class Items implements Main.Extractor {
         var itemsJson = new JsonArray();
 
         for (var item : registryManager
-            .getOrThrow(RegistryKeys.ITEM)
-            .streamEntries()
+            .lookupOrThrow(Registries.ITEM)
+            .listElements()
             .toList()) {
             var itemJson = new JsonObject();
 
             itemJson.addProperty(
                 "id",
-                registryManager
-                    .getOrThrow(RegistryKeys.ITEM)
-                    .getRawId(item.value())
+                BuiltInRegistries.ITEM.getId(item.value())
             );
             itemJson.addProperty(
                 "name",
-                item.getKey().orElseThrow().getValue().getPath()
+                item.key().identifier().getPath()
             );
             Item realItem = item.value();
             itemJson.addProperty(
                 "translation_key",
-                realItem.getTranslationKey()
+                realItem.getDescriptionId()
             );
-            itemJson.addProperty("max_stack", realItem.getMaxCount());
+            itemJson.addProperty("max_stack", realItem.getDefaultInstance().getMaxStackSize());
             itemJson.addProperty(
                 "max_durability",
-                realItem.getDefaultStack().getMaxDamage()
+                realItem.getDefaultInstance().getMaxDamage()
             );
             itemJson.addProperty(
                 "enchantability",
                 Optional.ofNullable(
-                    realItem.getComponents().get(DataComponentTypes.ENCHANTABLE)
+                    realItem.components().get(DataComponents.ENCHANTABLE)
                 )
-                    .map(EnchantableComponent::value)
+                    .map(Enchantable::value)
                     .orElse(0)
             );
             itemJson.addProperty(
                 "fireproof",
                 Optional.ofNullable(
                     realItem
-                        .getComponents()
-                        .get(DataComponentTypes.DAMAGE_RESISTANT)
+                        .components()
+                        .get(DataComponents.DAMAGE_RESISTANT)
                 )
-                    .map(x -> x.types() == DamageTypeTags.IS_FIRE)
+                    .map(x -> x.types().unwrapKey().map(t -> t.equals(DamageTypeTags.IS_FIRE)).orElse(false))
                     .orElse(false)
             );
 
             itemJson.add(
                 "components",
-                ComponentMap.CODEC.encodeStart(
-                    RegistryOps.of(JsonOps.INSTANCE, registryManager),
-                    realItem.getComponents()
+                DataComponentMap.CODEC.encodeStart(
+                    RegistryOps.create(JsonOps.INSTANCE, registryManager),
+                    realItem.components()
                 ).getOrThrow()
             );
 

@@ -3,8 +3,8 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::query::QueryData;
 use bevy_ecs::system::SystemState;
 use valence_entity::active_status_effects::{ActiveStatusEffect, ActiveStatusEffects};
-use valence_entity::entity::Flags;
-use valence_entity::living::PotionSwirlsAmbient;
+use valence_entity::entity::DataSharedFlagsId as Flags;
+use valence_entity::living::DataEffectAmbienceId as PotionSwirlsAmbient;
 use valence_protocol::packets::play::{
     update_mob_effect_s2c, RemoveMobEffectS2c, UpdateMobEffectS2c,
 };

@@ -36,8 +36,12 @@ macro_rules! flags {
     }
 }
 
+// Mojang field names from 26.1: every "flags" component is now generated from
+// the `data_*` field on the corresponding entity. The accessors below mirror
+// the bit layout of the matching `EntityDataSerializers.BYTE` slot, so the
+// only thing that has to change between protocol versions is the field path.
 flags! {
-    entity::Flags {
+    entity::DataSharedFlagsId {
         on_fire: 0,
         sneaking: 1,
         sprinting: 3,
@@ -46,16 +50,16 @@ flags! {
         glowing: 6,
         fall_flying: 7,
     }
-    persistent_projectile::ProjectileFlags {
+    abstract_arrow::IdFlags {
         critical: 0,
         no_clip: 1,
     }
-    living::LivingFlags {
+    living::DataLivingEntityFlags {
         using_item: 0,
         off_hand_active: 1,
         using_riptide: 2,
     }
-    player::PlayerModelParts {
+    avatar::DataPlayerModeCustomisation {
         cape: 0,
         jacket: 1,
         left_sleeve: 2,
@@ -64,24 +68,21 @@ flags! {
         right_pants_leg: 5,
         hat: 6,
     }
-    player::MainArm {
-        right: 0,
-    }
-    armor_stand::ArmorStandFlags {
+    armor_stand::DataClientFlags {
         small: 0,
         show_arms: 1,
         hide_base_plate: 2,
         marker: 3,
     }
-    mob::MobFlags {
+    mob::DataMobFlagsId {
         ai_disabled: 0,
         left_handed: 1,
         attacking: 2,
     }
-    bat::BatFlags {
+    bat::DataIdFlags {
         hanging: 0,
     }
-    abstract_horse::HorseFlags {
+    abstract_horse::DataIdFlags {
         tamed: 1,
         saddled: 2,
         bred: 3,
@@ -89,7 +90,7 @@ flags! {
         angry: 5,
         eating: 6,
     }
-    fox::FoxFlags {
+    fox::DataFlagsId {
         sitting: 0,
         crouching: 2,
         rolling_head: 3,
@@ -98,29 +99,26 @@ flags! {
         walking: 6,
         aggressive: 7,
     }
-    panda::PandaFlags {
+    panda::DataIdFlags {
         sneezing: 1,
         playing: 2,
         sitting: 3,
         lying_on_back: 4,
     }
-    tameable::TameableFlags {
+    tamable_animal::DataFlagsId {
         sitting_pose: 0,
         tamed: 2,
     }
-    iron_golem::IronGolemFlags {
+    iron_golem::DataFlagsId {
         player_created: 0,
     }
-    snow_golem::SnowGolemFlags {
-        has_pumpkin: 4,
-    }
-    blaze::BlazeFlags {
+    blaze::DataFlagsId {
         fire_active: 0,
     }
-    vex::VexFlags {
+    vex::DataFlagsId {
         charging: 0,
     }
-    spider::SpiderFlags {
+    spider::DataFlagsId {
         climbing_wall: 0,
     }
 }
@@ -131,7 +129,7 @@ mod tests {
 
     #[test]
     fn get_set_flags() {
-        let mut flags = entity::Flags(0);
+        let mut flags = entity::DataSharedFlagsId(0);
 
         flags.set_on_fire(true);
         let before = flags.clone();

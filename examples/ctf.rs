@@ -4,8 +4,8 @@ use std::collections::HashMap;
 
 use bevy_ecs::query::QueryData;
 use valence::entity::cow::CowEntityBundle;
-use valence::entity::entity::Flags;
-use valence::entity::living::Health;
+use valence::entity::entity::DataSharedFlagsId as Flags;
+use valence::entity::living::DataHealthId as Health;
 use valence::entity::pig::PigEntityBundle;
 use valence::entity::player::PlayerEntityBundle;
 use valence::entity::{EntityAnimations, EntityStatuses, OnGround, Velocity};
@@ -144,7 +144,7 @@ fn setup(
     let mut pig = commands.spawn(PigEntityBundle {
         layer: EntityLayerId(ctf_team_layers.friendly_layers[&Team::Red]),
         position: Position([-30.0, 65.0, 2.0].into()),
-        entity_flags: flags.clone(),
+        entity_data_shared_flags_id: flags.clone(),
         ..Default::default()
     });
     pig.insert(Team::Red);
@@ -152,7 +152,7 @@ fn setup(
     let mut cow = commands.spawn(CowEntityBundle {
         layer: EntityLayerId(ctf_team_layers.friendly_layers[&Team::Blue]),
         position: Position([30.0, 65.0, 2.0].into()),
-        entity_flags: flags,
+        entity_data_shared_flags_id: flags,
         ..Default::default()
     });
     cow.insert(Team::Blue);
@@ -662,7 +662,7 @@ fn do_team_selector_portals(
             let mut player_glowing = commands.spawn(PlayerEntityBundle {
                 layer: EntityLayerId(friendly_layer),
                 uuid: *unique_id,
-                entity_flags: flags,
+                entity_data_shared_flags_id: flags,
                 position: *pos,
                 ..Default::default()
             });
@@ -1013,8 +1013,11 @@ fn handle_combat_events(
 
         attacker.state.has_bonus_knockback = false;
 
-        victim.client.trigger_status(EntityStatus::PlayAttackSound);
-        victim.statuses.trigger(EntityStatus::PlayAttackSound);
+        // 26.1 dropped the standalone PlayAttackSound status (the sound is now
+        // played client-side via animation events). Fall back to StartAttacking,
+        // which is the closest analogue still in EntityStatus.
+        victim.client.trigger_status(EntityStatus::StartAttacking);
+        victim.statuses.trigger(EntityStatus::StartAttacking);
 
         let stack = attacker.inventory.slot(attacker.held_item.slot());
 

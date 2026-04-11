@@ -4,26 +4,31 @@ import com.google.gson.*;
 import com.mojang.authlib.GameProfile;
 import java.lang.reflect.ParameterizedType;
 import java.util.*;
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.*;
-import net.minecraft.entity.attribute.DefaultAttributeRegistry;
-import net.minecraft.entity.attribute.EntityAttribute;
-import net.minecraft.entity.attribute.EntityAttributeInstance;
-import net.minecraft.entity.data.DataTracker;
-import net.minecraft.entity.data.TrackedData;
-import net.minecraft.entity.data.TrackedDataHandlerRegistry;
-import net.minecraft.entity.passive.*;
-import net.minecraft.item.ItemStack;
-import net.minecraft.particle.ParticleEffect;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
+import net.minecraft.core.Rotations;
+import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializer;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.EulerAngle;
-import net.minecraft.util.math.GlobalPos;
-import net.minecraft.village.VillagerData;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.DefaultAttributes;
+import net.minecraft.world.entity.animal.armadillo.Armadillo;
+import net.minecraft.world.entity.animal.sniffer.Sniffer;
+import net.minecraft.world.entity.npc.villager.VillagerData;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -33,58 +38,65 @@ import rs.valence.extractor.Main;
 
 public class Entities implements Main.Extractor {
 
-    private final ServerWorld world;
+    private final ServerLevel world;
 
     public Entities(MinecraftServer server) {
-        this.world = server.getOverworld();
+        // TODO(26.1): yarn MinecraftServer#getOverworld mapped to Mojang overworld().
+        this.world = server.overworld();
     }
 
+    // EntityDataSerializers field names below were verified against
+    // net.minecraft.network.syncher.EntityDataSerializers in 26.1.2 via javap.
     private static Main.Pair<String, JsonElement> trackedDataToJson(
-            TrackedData<?> data,
-            DataTracker tracker) {
-        final var handler = data.dataType();
+            EntityDataAccessor<?> data,
+            SynchedEntityData tracker) {
+        // TODO(26.1): yarn TrackedData#dataType() mapped to Mojang
+        // EntityDataAccessor#serializer(); verify via javap.
+        final EntityDataSerializer<?> handler = data.serializer();
         final var val = tracker.get(data);
 
-        if (handler == TrackedDataHandlerRegistry.BYTE) {
+        if (handler == EntityDataSerializers.BYTE) {
             return new Main.Pair<>("byte", new JsonPrimitive((Byte) val));
-        } else if (handler == TrackedDataHandlerRegistry.INTEGER) {
+        } else if (handler == EntityDataSerializers.INT) {
             return new Main.Pair<>("integer", new JsonPrimitive((Integer) val));
-        } else if (handler == TrackedDataHandlerRegistry.LONG) {
+        } else if (handler == EntityDataSerializers.LONG) {
             return new Main.Pair<>("long", new JsonPrimitive((Long) val));
-        } else if (handler == TrackedDataHandlerRegistry.FLOAT) {
+        } else if (handler == EntityDataSerializers.FLOAT) {
             return new Main.Pair<>("float", new JsonPrimitive((Float) val));
-        } else if (handler == TrackedDataHandlerRegistry.STRING) {
+        } else if (handler == EntityDataSerializers.STRING) {
             return new Main.Pair<>("string", new JsonPrimitive((String) val));
-        } else if (handler == TrackedDataHandlerRegistry.TEXT_COMPONENT) {
+        } else if (handler == EntityDataSerializers.COMPONENT) {
             // TODO: return text as json element.
             return new Main.Pair<>(
                     "text_component",
-                    new JsonPrimitive(((Text) val).getString()));
-        } else if (handler == TrackedDataHandlerRegistry.OPTIONAL_TEXT_COMPONENT) {
-            var res = ((Optional<?>) val).map(o -> (JsonElement) new JsonPrimitive(((Text) o).getString()))
+                    new JsonPrimitive(((Component) val).getString()));
+        } else if (handler == EntityDataSerializers.OPTIONAL_COMPONENT) {
+            var res = ((Optional<?>) val).map(o -> (JsonElement) new JsonPrimitive(((Component) o).getString()))
                     .orElse(JsonNull.INSTANCE);
             return new Main.Pair<>("optional_text_component", res);
-        } else if (handler == TrackedDataHandlerRegistry.ITEM_STACK) {
+        } else if (handler == EntityDataSerializers.ITEM_STACK) {
             return new Main.Pair<>(
                     "item_stack",
                     new JsonPrimitive(((ItemStack) val).toString()));
-        } else if (handler == TrackedDataHandlerRegistry.BOOLEAN) {
+        } else if (handler == EntityDataSerializers.BOOLEAN) {
             return new Main.Pair<>("boolean", new JsonPrimitive((Boolean) val));
-        } else if (handler == TrackedDataHandlerRegistry.ROTATION) {
+        } else if (handler == EntityDataSerializers.ROTATIONS) {
             var json = new JsonObject();
-            var ea = (EulerAngle) val;
-            json.addProperty("pitch", ea.pitch());
-            json.addProperty("yaw", ea.yaw());
-            json.addProperty("roll", ea.roll());
+            // TODO(26.1): yarn EulerAngle#pitch/yaw/roll mapped to Mojang
+            // Rotations#getX/getY/getZ; verify.
+            var ea = (Rotations) val;
+            json.addProperty("pitch", ea.x());
+            json.addProperty("yaw", ea.y());
+            json.addProperty("roll", ea.z());
             return new Main.Pair<>("rotation", json);
-        } else if (handler == TrackedDataHandlerRegistry.BLOCK_POS) {
+        } else if (handler == EntityDataSerializers.BLOCK_POS) {
             var bp = (BlockPos) val;
             var json = new JsonObject();
             json.addProperty("x", bp.getX());
             json.addProperty("y", bp.getY());
             json.addProperty("z", bp.getZ());
             return new Main.Pair<>("block_pos", json);
-        } else if (handler == TrackedDataHandlerRegistry.OPTIONAL_BLOCK_POS) {
+        } else if (handler == EntityDataSerializers.OPTIONAL_BLOCK_POS) {
             return new Main.Pair<>(
                     "optional_block_pos",
                     ((Optional<?>) val).map(o -> {
@@ -95,103 +107,130 @@ public class Entities implements Main.Extractor {
                         json.addProperty("z", bp.getZ());
                         return (JsonElement) json;
                     }).orElse(JsonNull.INSTANCE));
-        } else if (handler == TrackedDataHandlerRegistry.FACING) {
+        } else if (handler == EntityDataSerializers.DIRECTION) {
             return new Main.Pair<>("facing", new JsonPrimitive(val.toString()));
-        } else if (handler == TrackedDataHandlerRegistry.BLOCK_STATE) {
+        } else if (handler == EntityDataSerializers.BLOCK_STATE) {
             // TODO: get raw block state ID.
             var state = (BlockState) val;
             return new Main.Pair<>(
                     "block_state",
                     new JsonPrimitive(state.toString()));
-        } else if (handler == TrackedDataHandlerRegistry.OPTIONAL_BLOCK_STATE) {
+        } else if (handler == EntityDataSerializers.OPTIONAL_BLOCK_STATE) {
             // TODO: get raw block state ID.
             var res = ((Optional<?>) val).map(o -> (JsonElement) new JsonPrimitive(o.toString()))
                     .orElse(JsonNull.INSTANCE);
             return new Main.Pair<>("optional_block_state", res);
-        } else if (handler == TrackedDataHandlerRegistry.NBT_COMPOUND) {
-            // TODO: base64 binary representation or SNBT?
-            return new Main.Pair<>(
-                    "nbt_compound",
-                    new JsonPrimitive(val.toString()));
-        } else if (handler == TrackedDataHandlerRegistry.PARTICLE) {
-            var id = Registries.PARTICLE_TYPE.getId(
-                    ((ParticleEffect) val).getType());
+        } else if (handler == EntityDataSerializers.PARTICLE) {
+            // TODO(26.1): yarn Registries.PARTICLE_TYPE#getId mapped to Mojang
+            // BuiltInRegistries.PARTICLE_TYPE#getKey (returns ResourceLocation/Identifier).
+            var id = BuiltInRegistries.PARTICLE_TYPE.getKey(
+                    ((ParticleOptions) val).getType());
             return new Main.Pair<>("particle", new JsonPrimitive(id.getPath()));
-        } else if (handler == TrackedDataHandlerRegistry.PARTICLE_LIST) {
+        } else if (handler == EntityDataSerializers.PARTICLES) {
             @SuppressWarnings("unchecked")
-            List<ParticleEffect> particleList = (List<ParticleEffect>) val;
+            List<ParticleOptions> particleList = (List<ParticleOptions>) val;
             JsonArray json = new JsonArray();
-            for (ParticleEffect particleEffect : particleList) {
-                var id = Registries.PARTICLE_TYPE.getId(particleEffect.getType());
+            for (ParticleOptions particleEffect : particleList) {
+                var id = BuiltInRegistries.PARTICLE_TYPE.getKey(particleEffect.getType());
                 json.add(new JsonPrimitive(id.getPath()));
             }
             return new Main.Pair<>("particle_list", json);
-        } else if (handler == TrackedDataHandlerRegistry.VILLAGER_DATA) {
+        } else if (handler == EntityDataSerializers.VILLAGER_DATA) {
             var vd = (VillagerData) val;
             var json = new JsonObject();
-            var type = Registries.VILLAGER_TYPE.getId(vd.type().value()).getPath();
-            var profession = Registries.VILLAGER_PROFESSION.getId(
+            // TODO(26.1): yarn Registries.VILLAGER_TYPE / VILLAGER_PROFESSION mapped to
+            // BuiltInRegistries.VILLAGER_TYPE / VILLAGER_PROFESSION; record accessors
+            // vd.type()/profession()/level() return Holder<...>/int. Verify field names.
+            var type = BuiltInRegistries.VILLAGER_TYPE.getKey(vd.type().value()).getPath();
+            var profession = BuiltInRegistries.VILLAGER_PROFESSION.getKey(
                     vd.profession().value()).getPath();
             json.addProperty("type", type);
             json.addProperty("profession", profession);
             json.addProperty("level", vd.level());
             return new Main.Pair<>("villager_data", json);
-        } else if (handler == TrackedDataHandlerRegistry.OPTIONAL_INT) {
+        } else if (handler == EntityDataSerializers.OPTIONAL_UNSIGNED_INT) {
             var opt = (OptionalInt) val;
             return new Main.Pair<>(
                     "optional_int",
                     opt.isPresent()
                             ? new JsonPrimitive(opt.getAsInt())
                             : JsonNull.INSTANCE);
-        } else if (handler == TrackedDataHandlerRegistry.ENTITY_POSE) {
+        } else if (handler == EntityDataSerializers.POSE) {
             return new Main.Pair<>(
                     "entity_pose",
                     new JsonPrimitive(
-                            ((EntityPose) val).name().toLowerCase(Locale.ROOT)));
-        } else if (handler == TrackedDataHandlerRegistry.CAT_VARIANT) {
+                            ((Pose) val).name().toLowerCase(Locale.ROOT)));
+        } else if (handler == EntityDataSerializers.CAT_VARIANT) {
             return new Main.Pair<>(
                     "cat_variant",
                     new JsonPrimitive(
-                            ((RegistryEntry<?>) val).getIdAsString()));
-        } else if (handler == TrackedDataHandlerRegistry.WOLF_SOUND_VARIANT) {
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.CAT_SOUND_VARIANT) {
+            return new Main.Pair<>(
+                    "cat_sound_variant",
+                    new JsonPrimitive(
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.WOLF_SOUND_VARIANT) {
             return new Main.Pair<>(
                     "wolf_sound_variant",
                     new JsonPrimitive(
-                            ((RegistryEntry<?>) val).getIdAsString()));
-        } else if (handler == TrackedDataHandlerRegistry.WOLF_VARIANT) {
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.WOLF_VARIANT) {
             return new Main.Pair<>(
                     "wolf_variant",
                     new JsonPrimitive(
-                            ((RegistryEntry<?>) val).getIdAsString()));
-        } else if (handler == TrackedDataHandlerRegistry.FROG_VARIANT) {
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.FROG_VARIANT) {
             return new Main.Pair<>(
                     "frog_variant",
                     new JsonPrimitive(
-                            ((RegistryEntry<?>) val).getIdAsString()));
-        } else if (handler == TrackedDataHandlerRegistry.COW_VARIANT) {
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.COW_VARIANT) {
             return new Main.Pair<>(
                     "cow_variant",
                     new JsonPrimitive(
-                            ((RegistryEntry<?>) val).getIdAsString()));
-        } else if (handler == TrackedDataHandlerRegistry.CHICKEN_VARIANT) {
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.COW_SOUND_VARIANT) {
+            return new Main.Pair<>(
+                    "cow_sound_variant",
+                    new JsonPrimitive(
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.CHICKEN_VARIANT) {
             return new Main.Pair<>(
                     "chicken_variant",
                     new JsonPrimitive(
-                            ((RegistryEntry<?>) val).getIdAsString()));
-        } else if (handler == TrackedDataHandlerRegistry.PIG_VARIANT) {
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.CHICKEN_SOUND_VARIANT) {
+            return new Main.Pair<>(
+                    "chicken_sound_variant",
+                    new JsonPrimitive(
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.PIG_VARIANT) {
             return new Main.Pair<>(
                     "pig_variant",
                     new JsonPrimitive(
-                            ((RegistryEntry<?>) val).getIdAsString()));
-        } else if (handler == TrackedDataHandlerRegistry.OPTIONAL_GLOBAL_POS) {
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.PIG_SOUND_VARIANT) {
+            return new Main.Pair<>(
+                    "pig_sound_variant",
+                    new JsonPrimitive(
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.ZOMBIE_NAUTILUS_VARIANT) {
+            return new Main.Pair<>(
+                    "zombie_nautilus_variant",
+                    new JsonPrimitive(
+                            holderIdString(val)));
+        } else if (handler == EntityDataSerializers.OPTIONAL_GLOBAL_POS) {
             return new Main.Pair<>(
                     "optional_global_pos",
                     ((Optional<?>) val).map(o -> {
                         var gp = (GlobalPos) o;
                         var json = new JsonObject();
+                        // TODO(26.1): yarn ResourceKey#getValue mapped to Mojang
+                        // ResourceKey#location() returning Identifier/ResourceLocation.
                         json.addProperty(
                                 "dimension",
-                                gp.dimension().getValue().toString());
+                                gp.dimension().identifier().toString());
 
                         var posJson = new JsonObject();
                         posJson.addProperty("x", gp.pos().getX());
@@ -201,32 +240,48 @@ public class Entities implements Main.Extractor {
                         json.add("position", posJson);
                         return (JsonElement) json;
                     }).orElse(JsonNull.INSTANCE));
-        } else if (handler == TrackedDataHandlerRegistry.PAINTING_VARIANT) {
-            var variant = ((RegistryEntry<?>) val).getKey()
-                    .map(k -> k.getValue().getPath())
-                    .orElse("");
+        } else if (handler == EntityDataSerializers.PAINTING_VARIANT) {
+            // TODO(26.1): yarn RegistryEntry#getKey mapped to Mojang Holder#unwrapKey;
+            // ResourceKey#getValue → location(). Verify accessor names.
+            var variant = "";
+            try {
+                var holder = val;
+                var unwrapKey = holder.getClass().getMethod("unwrapKey");
+                @SuppressWarnings("unchecked")
+                var optKey = (Optional<Object>) unwrapKey.invoke(holder);
+                if (optKey.isPresent()) {
+                    var key = optKey.get();
+                    var location = key.getClass().getMethod("identifier").invoke(key);
+                    var path = (String) location.getClass().getMethod("getPath").invoke(location);
+                    variant = path;
+                }
+            } catch (ReflectiveOperationException e) {
+                // fall through with empty variant
+            }
             return new Main.Pair<>(
                     "painting_variant",
                     new JsonPrimitive(variant));
-        } else if (handler == TrackedDataHandlerRegistry.SNIFFER_STATE) {
+        } else if (handler == EntityDataSerializers.SNIFFER_STATE) {
             return new Main.Pair<>(
                     "sniffer_state",
                     new JsonPrimitive(
-                            ((SnifferEntity.State) val).name().toLowerCase(Locale.ROOT)));
-        } else if (handler == TrackedDataHandlerRegistry.ARMADILLO_STATE) {
+                            ((Sniffer.State) val).name().toLowerCase(Locale.ROOT)));
+        } else if (handler == EntityDataSerializers.ARMADILLO_STATE) {
+            // TODO(26.1): yarn ArmadilloEntity.State mapped to Mojang
+            // Armadillo.ArmadilloState (nested class ArmadilloState per mc-classes).
             return new Main.Pair<>(
                     "armadillo_state",
                     new JsonPrimitive(
-                            ((ArmadilloEntity.State) val).name()
+                            ((Armadillo.ArmadilloState) val).name()
                                     .toLowerCase(Locale.ROOT)));
-        } else if (handler == TrackedDataHandlerRegistry.VECTOR_3F) {
+        } else if (handler == EntityDataSerializers.VECTOR3) {
             var vec = (Vector3f) val;
             var json = new JsonObject();
             json.addProperty("x", vec.x);
             json.addProperty("y", vec.y);
             json.addProperty("z", vec.z);
             return new Main.Pair<>("vector3f", json);
-        } else if (handler == TrackedDataHandlerRegistry.QUATERNION_F) {
+        } else if (handler == EntityDataSerializers.QUATERNION) {
             var quat = (Quaternionf) val;
             var json = new JsonObject();
             json.addProperty("x", quat.x);
@@ -234,14 +289,66 @@ public class Entities implements Main.Extractor {
             json.addProperty("z", quat.z);
             json.addProperty("w", quat.w);
             return new Main.Pair<>("quaternionf", json);
-        } else if (handler == TrackedDataHandlerRegistry.LAZY_ENTITY_REFERENCE) {
-            return new Main.Pair<>("lazy_entity_reference", new JsonObject());
+        } else if (handler == EntityDataSerializers.OPTIONAL_LIVING_ENTITY_REFERENCE) {
+            return new Main.Pair<>("optional_living_entity_reference", new JsonObject());
+        } else if (handler == EntityDataSerializers.COPPER_GOLEM_STATE) {
+            return new Main.Pair<>(
+                    "copper_golem_state",
+                    new JsonPrimitive(
+                            ((Enum<?>) val).name().toLowerCase(Locale.ROOT)));
+        } else if (handler == EntityDataSerializers.WEATHERING_COPPER_STATE) {
+            return new Main.Pair<>(
+                    "weathering_copper_state",
+                    new JsonPrimitive(
+                            ((Enum<?>) val).name().toLowerCase(Locale.ROOT)));
+        } else if (handler == EntityDataSerializers.HUMANOID_ARM) {
+            return new Main.Pair<>(
+                    "humanoid_arm",
+                    new JsonPrimitive(
+                            ((Enum<?>) val).name().toLowerCase(Locale.ROOT)));
+        } else if (handler == EntityDataSerializers.RESOLVABLE_PROFILE) {
+            // ResolvableProfile wraps an optional name/UUID + properties; we
+            // surface the resolved name when present and otherwise an empty
+            // string, mirroring how the Mojang client treats unresolved heads.
+            String name = "";
+            try {
+                var nameMethod = val.getClass().getMethod("name");
+                @SuppressWarnings("unchecked")
+                var optName = (Optional<String>) nameMethod.invoke(val);
+                name = optName.orElse("");
+            } catch (ReflectiveOperationException e) {
+                // fall through with empty name
+            }
+            var json = new JsonObject();
+            json.addProperty("name", name);
+            return new Main.Pair<>("resolvable_profile", json);
         } else {
+            // TODO(26.1): yarn TrackedDataHandlerRegistry#getId mapped to Mojang
+            // EntityDataSerializers#getSerializedId; verify method name.
             throw new IllegalArgumentException(
                     "Unexpected tracked handler of ID " +
-                            TrackedDataHandlerRegistry.getId(handler) +
+                            EntityDataSerializers.getSerializedId(handler) +
                             handler.toString());
         }
+    }
+
+    // TODO(26.1): yarn RegistryEntry#getIdAsString does not exist on Mojang Holder;
+    // fall back to reflection over unwrapKey()/location()/toString() until the right
+    // accessor is verified via javap on net.minecraft.core.Holder.
+    private static String holderIdString(Object holder) {
+        try {
+            var unwrapKey = holder.getClass().getMethod("unwrapKey");
+            @SuppressWarnings("unchecked")
+            var optKey = (Optional<Object>) unwrapKey.invoke(holder);
+            if (optKey.isPresent()) {
+                var key = optKey.get();
+                var location = key.getClass().getMethod("identifier").invoke(key);
+                return location.toString();
+            }
+        } catch (ReflectiveOperationException e) {
+            // fall through
+        }
+        return "";
     }
 
     @Override
@@ -266,7 +373,10 @@ public class Entities implements Main.Extractor {
             }
         }
 
-        final var dataTrackerField = Entity.class.getDeclaredField("dataTracker");
+        // TODO(26.1): yarn Entity#dataTracker field mapped to Mojang Entity#entityData
+        // (private field of type SynchedEntityData). Verify via javap on
+        // net.minecraft.world.entity.Entity.
+        final var dataTrackerField = Entity.class.getDeclaredField("entityData");
         dataTrackerField.setAccessible(true);
 
         var entitiesMap = new TreeMap<Class<? extends Entity>, JsonElement>(
@@ -288,13 +398,13 @@ public class Entities implements Main.Extractor {
             final var entityInstance = entityType.equals(EntityType.PLAYER)
                     ? new DummyPlayerEntity(
                             world,
-                            BlockPos.ofFloored(0, 70, 0),
+                            BlockPos.containing(0, 70, 0),
                             0,
                             new GameProfile(UUID.randomUUID(), "cooldude"),
                             null)
-                    : entityType.create(world, SpawnReason.COMMAND);
+                    : entityType.create(world, EntitySpawnReason.COMMAND);
 
-            final var dataTracker = (DataTracker) dataTrackerField.get(
+            final var dataTracker = (SynchedEntityData) dataTrackerField.get(
                     entityInstance);
 
             while (null == entitiesMap.get(entityClass)) {
@@ -310,19 +420,21 @@ public class Entities implements Main.Extractor {
                 if (null != entityType) {
                     entityJson.addProperty(
                             "type",
-                            Registries.ENTITY_TYPE.getId(entityType).getPath());
+                            BuiltInRegistries.ENTITY_TYPE.getKey(entityType).getPath());
 
+                    // TODO(26.1): yarn EntityType#getTranslationKey mapped to Mojang
+                    // EntityType#getDescriptionId.
                     entityJson.add(
                             "translation_key",
-                            new JsonPrimitive(entityType.getTranslationKey()));
+                            new JsonPrimitive(entityType.getDescriptionId()));
                 }
 
                 var fieldsJson = new JsonArray();
                 for (var entityField : entityClass.getDeclaredFields()) {
-                    if (entityField.getType().equals(TrackedData.class)) {
+                    if (entityField.getType().equals(EntityDataAccessor.class)) {
                         entityField.setAccessible(true);
 
-                        var trackedData = (TrackedData<?>) entityField.get(
+                        var trackedData = (EntityDataAccessor<?>) entityField.get(
                                 null);
 
                         var fieldJson = new JsonObject();
@@ -330,6 +442,8 @@ public class Entities implements Main.Extractor {
                                 .getName()
                                 .toLowerCase(Locale.ROOT);
                         fieldJson.addProperty("name", fieldName);
+                        // TODO(26.1): yarn TrackedData#id mapped to Mojang
+                        // EntityDataAccessor#getId.
                         fieldJson.addProperty("index", trackedData.id());
 
                         var data = Entities.trackedDataToJson(
@@ -345,14 +459,18 @@ public class Entities implements Main.Extractor {
 
                 if (entityInstance instanceof LivingEntity) {
                     var type = (EntityType<? extends LivingEntity>) entityType;
-                    var defaultAttributes = DefaultAttributeRegistry.get(type);
+                    // TODO(26.1): yarn DefaultAttributeRegistry mapped to Mojang
+                    // DefaultAttributes. The returned value is an AttributeSupplier whose
+                    // internal map field historically is named "instances". Verify via
+                    // javap on net.minecraft.world.entity.ai.attributes.AttributeSupplier.
+                    var defaultAttributes = DefaultAttributes.getSupplier(type);
                     var attributesJson = new JsonArray();
                     if (null != defaultAttributes) {
                         var instancesField = defaultAttributes
                                 .getClass()
                                 .getDeclaredField("instances");
                         instancesField.setAccessible(true);
-                        var instances = (Map<EntityAttribute, EntityAttributeInstance>) instancesField
+                        var instances = (Map<Attribute, AttributeInstance>) instancesField
                                 .get(defaultAttributes);
 
                         for (var instance : instances.values()) {
@@ -362,10 +480,10 @@ public class Entities implements Main.Extractor {
 
                             attributeJson.addProperty(
                                     "id",
-                                    Registries.ATTRIBUTE.getRawId(attribute));
+                                    BuiltInRegistries.ATTRIBUTE.getId(attribute));
                             attributeJson.addProperty(
                                     "name",
-                                    Registries.ATTRIBUTE.getId(attribute).getPath());
+                                    BuiltInRegistries.ATTRIBUTE.getKey(attribute).getPath());
                             attributeJson.addProperty(
                                     "base_value",
                                     instance.getBaseValue());
@@ -380,9 +498,11 @@ public class Entities implements Main.Extractor {
                 if (null != bb && null != entityType) {
                     var boundingBoxJson = new JsonObject();
 
-                    boundingBoxJson.addProperty("size_x", bb.getLengthX());
-                    boundingBoxJson.addProperty("size_y", bb.getLengthY());
-                    boundingBoxJson.addProperty("size_z", bb.getLengthZ());
+                    // TODO(26.1): yarn Box#getLengthX/Y/Z mapped to Mojang
+                    // AABB#getXsize/getYsize/getZsize.
+                    boundingBoxJson.addProperty("size_x", bb.getXsize());
+                    boundingBoxJson.addProperty("size_y", bb.getYsize());
+                    boundingBoxJson.addProperty("size_z", bb.getZsize());
 
                     entityJson.add("default_bounding_box", boundingBoxJson);
                 }

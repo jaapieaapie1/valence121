@@ -3,19 +3,19 @@ package rs.valence.extractor.extractors;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
-import net.minecraft.enchantment.Enchantment;
-import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.RegistryOps;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.item.enchantment.Enchantment;
 import rs.valence.extractor.Main;
 
 public class Enchants implements Main.Extractor {
 
-    private final DynamicRegistryManager.Immutable registryManager;
+    private final RegistryAccess.Frozen registryManager;
 
     public Enchants(MinecraftServer server) {
-        this.registryManager = server.getRegistryManager();
+        this.registryManager = server.registryAccess();
     }
 
     @Override
@@ -28,13 +28,13 @@ public class Enchants implements Main.Extractor {
         var enchantsJson = new JsonObject();
 
         for (var enchant : registryManager
-            .getOrThrow(RegistryKeys.ENCHANTMENT)
-            .streamEntries()
+            .lookupOrThrow(Registries.ENCHANTMENT)
+            .listElements()
             .toList()) {
             enchantsJson.add(
-                enchant.getKey().orElseThrow().getValue().toString(),
-                Enchantment.CODEC.encodeStart(
-                    RegistryOps.of(JsonOps.INSTANCE, registryManager),
+                enchant.key().identifier().toString(),
+                Enchantment.DIRECT_CODEC.encodeStart(
+                    RegistryOps.create(JsonOps.INSTANCE, registryManager),
                     enchant.value()
                 ).getOrThrow()
             );

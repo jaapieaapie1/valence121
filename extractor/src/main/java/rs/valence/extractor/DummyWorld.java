@@ -3,47 +3,48 @@ package rs.valence.extractor;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.component.type.MapIdComponent;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.boss.dragon.EnderDragonPart;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.fluid.Fluid;
-import net.minecraft.item.FuelRegistry;
-import net.minecraft.item.map.MapState;
-import net.minecraft.particle.ParticleEffect;
-import net.minecraft.recipe.BrewingRecipeRegistry;
-import net.minecraft.recipe.RecipeManager;
-import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.resource.featuretoggle.FeatureFlags;
-import net.minecraft.resource.featuretoggle.FeatureSet;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.random.Random;
-import net.minecraft.util.profiler.Profiler;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.particles.ExplosionParticleInfo;
+import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraft.util.random.WeightedList;
 import net.minecraft.world.Difficulty;
-import net.minecraft.world.MutableWorldProperties;
-import net.minecraft.world.World;
-import net.minecraft.world.biome.Biome;
-import net.minecraft.world.chunk.ChunkManager;
-import net.minecraft.world.dimension.DimensionType;
-import net.minecraft.world.entity.EntityLookup;
-import net.minecraft.world.event.GameEvent;
-import net.minecraft.world.explosion.ExplosionBehavior;
-import net.minecraft.world.tick.QueryableTickScheduler;
-import net.minecraft.world.tick.TickManager;
+import net.minecraft.world.TickRateManager;
+import net.minecraft.world.attribute.EnvironmentAttributeSystem;
+import net.minecraft.world.clock.ClockManager;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragonPart;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.flag.FeatureFlagSet;
+import net.minecraft.world.flag.FeatureFlags;
+import net.minecraft.world.item.alchemy.PotionBrewing;
+import net.minecraft.world.item.crafting.RecipeAccess;
+import net.minecraft.world.level.ExplosionDamageCalculator;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.FuelValues;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ChunkSource;
+import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.entity.LevelEntityGetter;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.saveddata.maps.MapId;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
+import net.minecraft.world.level.storage.LevelData;
+import net.minecraft.world.level.storage.WritableLevelData;
+import net.minecraft.world.scores.Scoreboard;
+import net.minecraft.world.ticks.LevelTickAccess;
 import org.jetbrains.annotations.Nullable;
 
-public class DummyWorld extends World {
+public class DummyWorld extends Level {
 
     public static final DummyWorld INSTANCE;
 
@@ -51,24 +52,24 @@ public class DummyWorld extends World {
         INSTANCE = Main.magicallyInstantiate(DummyWorld.class);
 
         try {
-            var randomField = World.class.getDeclaredField("random");
+            var randomField = Level.class.getDeclaredField("random");
             randomField.setAccessible(true);
-            randomField.set(INSTANCE, Random.create());
+            randomField.set(INSTANCE, RandomSource.create());
 
-            var propertiesField = World.class.getDeclaredField("properties");
+            var propertiesField = Level.class.getDeclaredField("levelData");
             propertiesField.setAccessible(true);
-            propertiesField.set(INSTANCE, new DummyMutableWorldProperties());
+            propertiesField.set(INSTANCE, new DummyWritableLevelData());
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
 
     private DummyWorld(
-        MutableWorldProperties properties,
-        RegistryKey<World> registryRef,
-        DynamicRegistryManager registryManager,
-        RegistryEntry<DimensionType> dimension,
-        Supplier<Profiler> profiler,
+        WritableLevelData properties,
+        ResourceKey<Level> registryRef,
+        RegistryAccess registryManager,
+        Holder<DimensionType> dimension,
+        Supplier<ProfilerFiller> profiler,
         boolean isClient,
         boolean debugWorld,
         long seed,
@@ -79,7 +80,6 @@ public class DummyWorld extends World {
             registryRef,
             registryManager,
             dimension,
-            //            profiler,
             isClient,
             debugWorld,
             seed,
@@ -88,7 +88,7 @@ public class DummyWorld extends World {
     }
 
     @Override
-    public void updateListeners(
+    public void sendBlockUpdated(
         BlockPos pos,
         BlockState oldState,
         BlockState newState,
@@ -96,39 +96,48 @@ public class DummyWorld extends World {
     ) {}
 
     @Override
-    public void playSound(@Nullable Entity source, double x, double y, double z, RegistryEntry<SoundEvent> sound, SoundCategory category, float volume, float pitch, long seed) {
+    public void playSeededSound(
+        @Nullable Entity source,
+        double x,
+        double y,
+        double z,
+        Holder<SoundEvent> sound,
+        SoundSource category,
+        float volume,
+        float pitch,
+        long seed
+    ) {}
 
+    @Override
+    public void playSeededSound(
+        @Nullable Entity source,
+        Entity entity,
+        Holder<SoundEvent> sound,
+        SoundSource category,
+        float volume,
+        float pitch,
+        long seed
+    ) {}
+
+    @Nullable
+    @Override
+    public Entity getEntity(int id) {
+        return null;
     }
 
     @Override
-    public void playSoundFromEntity(@Nullable Entity source, Entity entity, RegistryEntry<SoundEvent> sound, SoundCategory category, float volume, float pitch, long seed) {
-
-    }
-
-    @Override
-    public String asString() {
-        return "";
+    public TickRateManager tickRateManager() {
+        return null;
     }
 
     @Nullable
     @Override
-    public Entity getEntityById(int id) {
+    public MapItemSavedData getMapData(MapId id) {
         return null;
     }
 
     @Override
-    public TickManager getTickManager() {
-        return null;
-    }
-
-    @Nullable
-    @Override
-    public MapState getMapState(MapIdComponent id) {
-        return null;
-    }
-
-    @Override
-    public void setBlockBreakingInfo(
+    public void destroyBlockProgress(
         int entityId,
         BlockPos pos,
         int progress
@@ -140,87 +149,85 @@ public class DummyWorld extends World {
     }
 
     @Override
-    public RecipeManager getRecipeManager() {
-        return null;
-    }
-
-
-    @Override
-    public Collection<EnderDragonPart> getEnderDragonParts() {
+    public RecipeAccess recipeAccess() {
         return null;
     }
 
     @Override
-    protected EntityLookup<Entity> getEntityLookup() {
+    public ClockManager clockManager() {
         return null;
     }
 
     @Override
-    public QueryableTickScheduler<Block> getBlockTickScheduler() {
+    public EnvironmentAttributeSystem environmentAttributes() {
         return null;
     }
 
     @Override
-    public QueryableTickScheduler<Fluid> getFluidTickScheduler() {
+    public Collection<EnderDragonPart> dragonParts() {
+        return List.of();
+    }
+
+    @Override
+    protected LevelEntityGetter<Entity> getEntities() {
         return null;
     }
 
     @Override
-    public ChunkManager getChunkManager() {
+    public LevelTickAccess<Block> getBlockTicks() {
         return null;
     }
 
     @Override
-    public void syncWorldEvent(@Nullable Entity source, int eventId, BlockPos pos, int data) {
-
+    public LevelTickAccess<Fluid> getFluidTicks() {
+        return null;
     }
 
     @Override
-    public void emitGameEvent(
-        RegistryEntry<GameEvent> event,
-        Vec3d emitterPos,
-        GameEvent.Emitter emitter
+    public ChunkSource getChunkSource() {
+        return null;
+    }
+
+    @Override
+    public void gameEvent(
+        Holder<net.minecraft.world.level.gameevent.GameEvent> event,
+        net.minecraft.world.phys.Vec3 emitterPos,
+        net.minecraft.world.level.gameevent.GameEvent.Context emitter
     ) {}
 
     @Override
-    public DynamicRegistryManager getRegistryManager() {
-        return DynamicRegistryManager.of(Registries.REGISTRIES);
-    }
+    public void levelEvent(@Nullable Entity source, int eventId, BlockPos pos, int data) {}
 
     @Override
-    public BrewingRecipeRegistry getBrewingRecipeRegistry() {
+    public PotionBrewing potionBrewing() {
         return null;
     }
 
     @Override
-    public FeatureSet getEnabledFeatures() {
-        return FeatureSet.of(
-            FeatureFlags.VANILLA,
-            FeatureFlags.MINECART_IMPROVEMENTS,
-            FeatureFlags.REDSTONE_EXPERIMENTS,
-            FeatureFlags.TRADE_REBALANCE
-        );
+    public FeatureFlagSet enabledFeatures() {
+        return FeatureFlagSet.of();
     }
 
     @Override
-    public FuelRegistry getFuelRegistry() {
+    public FuelValues fuelValues() {
         return null;
     }
 
     @Override
-    public void createExplosion(
+    public void explode(
         @Nullable Entity entity,
         @Nullable DamageSource damageSource,
-        @Nullable ExplosionBehavior behavior,
+        @Nullable ExplosionDamageCalculator behavior,
         double x,
         double y,
         double z,
         float power,
         boolean createFire,
-        ExplosionSourceType explosionSourceType,
-        ParticleEffect smallParticle,
-        ParticleEffect largeParticle,
-        RegistryEntry<SoundEvent> soundEvent
+        Level.ExplosionInteraction explosionSourceType,
+        ParticleOptions smallParticle,
+        ParticleOptions largeParticle,
+        WeightedList<ExplosionParticleInfo> explosionParticles,
+        Holder<SoundEvent> soundEvent
     ) {}
 
     @Override
@@ -229,17 +236,12 @@ public class DummyWorld extends World {
     }
 
     @Override
-    public float getBrightness(Direction direction, boolean shaded) {
-        return 0;
-    }
-
-    @Override
-    public List<? extends PlayerEntity> getPlayers() {
+    public List<? extends Player> players() {
         return List.of();
     }
 
     @Override
-    public RegistryEntry<Biome> getGeneratorStoredBiome(
+    public Holder<Biome> getUncachedNoiseBiome(
         int biomeX,
         int biomeY,
         int biomeZ
@@ -247,41 +249,40 @@ public class DummyWorld extends World {
         return null;
     }
 
-    private static class DummyMutableWorldProperties
-        implements MutableWorldProperties {
+    @Override
+    public String gatherChunkSourceStats() {
+        return "";
+    }
+
+    @Override
+    public void setRespawnData(LevelData.RespawnData data) {}
+
+    @Override
+    public LevelData.RespawnData getRespawnData() {
+        return LevelData.RespawnData.DEFAULT;
+    }
+
+    @Override
+    public long nextSubTickCount() {
+        return 0;
+    }
+
+    @Override
+    public net.minecraft.world.level.border.WorldBorder getWorldBorder() {
+        return null;
+    }
+
+    private static class DummyWritableLevelData implements WritableLevelData {
 
         @Override
-        public BlockPos getSpawnPos() {
-            return null;
+        public LevelData.RespawnData getRespawnData() {
+            return LevelData.RespawnData.DEFAULT;
         }
 
         @Override
-        public float getSpawnAngle() {
+        public long getGameTime() {
             return 0;
         }
-
-        @Override
-        public long getTime() {
-            return 0;
-        }
-
-        @Override
-        public long getTimeOfDay() {
-            return 0;
-        }
-
-        @Override
-        public boolean isThundering() {
-            return false;
-        }
-
-        @Override
-        public boolean isRaining() {
-            return false;
-        }
-
-        @Override
-        public void setRaining(boolean raining) {}
 
         @Override
         public boolean isHardcore() {
@@ -290,7 +291,7 @@ public class DummyWorld extends World {
 
         @Override
         public Difficulty getDifficulty() {
-            return null;
+            return Difficulty.PEACEFUL;
         }
 
         @Override
@@ -299,6 +300,6 @@ public class DummyWorld extends World {
         }
 
         @Override
-        public void setSpawnPos(BlockPos pos, float angle) {}
+        public void setSpawn(LevelData.RespawnData data) {}
     }
 }

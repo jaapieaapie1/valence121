@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.lang.reflect.Field;
 import java.util.Map;
-import net.minecraft.util.Language;
+import net.minecraft.locale.Language;
 import rs.valence.extractor.Main;
 
 public class TranslationKeys implements Main.Extractor {
@@ -44,6 +44,7 @@ public class TranslationKeys implements Main.Extractor {
         Class<? extends Language> anonymousClass = language.getClass();
         for (Field field : anonymousClass.getDeclaredFields()) {
             try {
+                field.setAccessible(true);
                 Object fieldValue = field.get(language);
                 if (fieldValue instanceof Map<?, ?>) {
                     return (Map<String, String>) fieldValue;
@@ -61,7 +62,7 @@ public class TranslationKeys implements Main.Extractor {
         }
 
         throw new RuntimeException(
-            "Did not find anonymous map under 'net.minecraft.util.Language.create()'"
+            "Did not find anonymous map under 'net.minecraft.locale.Language.create()'"
         );
     }
 }

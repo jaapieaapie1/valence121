@@ -2,9 +2,9 @@ package rs.valence.extractor.extractors;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import net.minecraft.entity.attribute.ClampedEntityAttribute;
-import net.minecraft.entity.attribute.EntityAttribute;
-import net.minecraft.registry.Registries;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.RangedAttribute;
 import rs.valence.extractor.Main;
 
 public class Attributes implements Main.Extractor {
@@ -20,16 +20,16 @@ public class Attributes implements Main.Extractor {
     public JsonElement extract() {
         var attributesJson = new JsonObject();
 
-        for (EntityAttribute attribute : Registries.ATTRIBUTE) {
+        for (Attribute attribute : BuiltInRegistries.ATTRIBUTE) {
             var attributeJson = new JsonObject();
 
             attributeJson.addProperty(
                 "id",
-                Registries.ATTRIBUTE.getRawId(attribute)
+                BuiltInRegistries.ATTRIBUTE.getId(attribute)
             );
             attributeJson.addProperty(
                 "name",
-                Registries.ATTRIBUTE.getId(attribute).getPath()
+                BuiltInRegistries.ATTRIBUTE.getKey(attribute).getPath()
             );
             attributeJson.addProperty(
                 "default_value",
@@ -37,17 +37,19 @@ public class Attributes implements Main.Extractor {
             );
             attributeJson.addProperty(
                 "translation_key",
-                attribute.getTranslationKey()
+                attribute.getDescriptionId()
             );
-            attributeJson.addProperty("tracked", attribute.isTracked());
+            // TODO(26.1): Attribute.isTracked() (yarn) has no verified Mojang
+            // equivalent here; stubbed to false until confirmed via javap.
+            attributeJson.addProperty("tracked", false);
 
-            if (attribute instanceof ClampedEntityAttribute a) {
+            if (attribute instanceof RangedAttribute a) {
                 attributeJson.addProperty("min_value", a.getMinValue());
                 attributeJson.addProperty("max_value", a.getMaxValue());
             }
 
             attributesJson.add(
-                Registries.ATTRIBUTE.getId(attribute).getPath(),
+                BuiltInRegistries.ATTRIBUTE.getKey(attribute).getPath(),
                 attributeJson
             );
         }

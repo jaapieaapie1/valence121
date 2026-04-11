@@ -1,38 +1,39 @@
 package rs.valence.extractor;
 
 import com.mojang.authlib.GameProfile;
-import net.minecraft.entity.data.DataTracker;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.encryption.PlayerPublicKey;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.GameMode;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.ProfilePublicKey;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
-public class DummyPlayerEntity extends PlayerEntity {
+public class DummyPlayerEntity extends Player {
 
     public static final DummyPlayerEntity INSTANCE;
 
     static {
         INSTANCE = Main.magicallyInstantiate(DummyPlayerEntity.class);
 
-        INSTANCE.initDataTracker(new DataTracker.Builder(INSTANCE));
+        // TODO(26.1): yarn `initDataTracker` is Mojang `defineSynchedData`; verify
+        // SynchedEntityData.Builder constructor still takes a SyncedDataHolder/Entity.
+        INSTANCE.defineSynchedData(new SynchedEntityData.Builder(INSTANCE));
     }
 
     public DummyPlayerEntity(
-        World world,
+        Level world,
         BlockPos pos,
         float yaw,
         GameProfile gameProfile,
-        @Nullable PlayerPublicKey publicKey
+        @Nullable ProfilePublicKey publicKey
     ) {
-        super(world, pos, yaw, gameProfile);
+        super(world, gameProfile);
     }
 
-    @Nullable
     @Override
-    public GameMode getGameMode() {
-        return GameMode.SURVIVAL;
+    public GameType gameMode() {
+        return GameType.SURVIVAL;
     }
 
     @Override

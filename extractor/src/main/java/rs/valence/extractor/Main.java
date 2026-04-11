@@ -86,14 +86,18 @@ public class Main implements ModInitializer {
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             LOGGER.info("Server starting, Running startup extractors...");
+            // TODO(26.1): yarn getSaveProperties()/updateLevelInfo()/withFeaturesAdded()
+            // mapped to Mojang getWorldData()/setDataConfiguration()/expand() in 1.21.x;
+            // not verified for 26.1.2 (javap unavailable in sandbox). Revisit if the API
+            // surface differs.
             server
-                .getSaveProperties()
-                .updateLevelInfo(
+                .getWorldData()
+                .setDataConfiguration(
                     server
-                        .getSaveProperties()
+                        .getWorldData()
                         .getDataConfiguration()
-                        .withFeaturesAdded(
-                            DummyWorld.INSTANCE.getEnabledFeatures()
+                        .expandFeatures(
+                            DummyWorld.INSTANCE.enabledFeatures()
                         )
                 );
             // TODO: make `Codec` implement `Extractor`
@@ -149,7 +153,8 @@ public class Main implements ModInitializer {
             }
 
             LOGGER.info("Done.");
-            server.stop(false);
+            // TODO(26.1): yarn MinecraftServer.stop(boolean) → Mojang halt(boolean).
+            server.halt(false);
         });
     }
 

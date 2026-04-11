@@ -2,21 +2,21 @@ package rs.valence.extractor;
 
 import java.io.Serializable;
 import java.util.Comparator;
-import net.minecraft.registry.RegistryKey;
+import net.minecraft.resources.ResourceKey;
 
 public class RegistryKeyComparator
-    implements Comparator<RegistryKey<?>>, Serializable {
+    implements Comparator<ResourceKey<?>>, Serializable {
 
     public RegistryKeyComparator() {}
 
     @Override
-    public int compare(RegistryKey<?> o1, RegistryKey<?> o2) {
-        var c1 = o1.getRegistry().compareTo(o2.getRegistry());
+    public int compare(ResourceKey<?> o1, ResourceKey<?> o2) {
+        var c1 = o1.registry().compareTo(o2.registry());
 
         if (0 != c1) {
             return c1;
         }
 
-        return o1.getValue().compareTo(o2.getValue());
+        return o1.identifier().compareTo(o2.identifier());
     }
 }

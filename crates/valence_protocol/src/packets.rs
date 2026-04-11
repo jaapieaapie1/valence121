@@ -116,8 +116,6 @@ pub mod play {
     pub use configuration_acknowledged_c2s::ConfigurationAcknowledgedC2s;
     pub mod container_slot_state_changed_c2s;
     pub use container_slot_state_changed_c2s::ContainerSlotStateChangedC2s;
-    pub mod debug_sample_subscription_c2s;
-    pub use debug_sample_subscription_c2s::DebugSampleSubscriptionC2s;
     pub mod debug_sample_s2c;
     pub use debug_sample_s2c::DebugSampleS2c;
     pub mod chunk_batch_finished_s2c;
@@ -304,8 +302,8 @@ pub mod play {
     pub use tag_query_s2c::TagQueryS2c;
     pub mod move_player_status_only_c2s;
     pub use move_player_status_only_c2s::MovePlayerStatusOnlyC2s;
-    pub mod horse_screen_open_s2c;
-    pub use horse_screen_open_s2c::HorseScreenOpenS2c;
+    pub mod mount_screen_open_s2c;
+    pub use mount_screen_open_s2c::MountScreenOpenS2c;
     pub mod open_screen_s2c;
     pub use open_screen_s2c::OpenScreenS2c;
     pub mod open_book_s2c;

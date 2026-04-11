@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use valence::entity::breeze::BreezeEntityBundle;
 use valence::entity::cat::{self, CatEntityBundle};
-use valence::entity::enderman::{self, EndermanEntityBundle};
+use valence::entity::ender_man::{self, EnderManEntityBundle};
 use valence::entity::frog::FrogEntityBundle;
 use valence::entity::painting::{self, PaintingEntityBundle};
 use valence::entity::player::PlayerEntityBundle;
@@ -88,7 +88,7 @@ impl MobDemo {
                         layer,
                         look: Look::new(DEMO_ENTITY_YAW, 0.0),
                         head_yaw: HeadYaw(DEMO_ENTITY_YAW),
-                        entity_pose: entity::Pose(pose),
+                        entity_data_pose: entity::DataPose(pose),
                         ..Default::default()
                     })
                     .id()
@@ -421,7 +421,7 @@ fn spawn_cat_variant(
             position,
             look: Look::new(DEMO_ENTITY_YAW, 0.0),
             head_yaw: HeadYaw(DEMO_ENTITY_YAW),
-            cat_cat_variant: cat::CatVariant(variant),
+            cat_data_variant_id: cat::DataVariantId(variant),
             ..Default::default()
         })
         .id()
@@ -438,7 +438,7 @@ fn spawn_painting_variant(
             layer,
             position: Position::new((position.0.x, position.0.y + 1.0, position.0.z)),
             object_data: ObjectData(2),
-            painting_variant: painting::Variant(variant),
+            painting_data_painting_variant_id: painting::DataPaintingVariantId(variant),
             ..Default::default()
         })
         .id()
@@ -458,12 +458,12 @@ fn spawn_enderman(
     }
 
     commands
-        .spawn(EndermanEntityBundle {
+        .spawn(EnderManEntityBundle {
             layer,
             position,
             look: Look::new(DEMO_ENTITY_YAW, 0.0),
             head_yaw: HeadYaw(DEMO_ENTITY_YAW),
-            enderman_carried_block: enderman::CarriedBlock(carried_block),
+            ender_man_data_carry_state: ender_man::DataCarryState(carried_block),
             ..Default::default()
         })
         .id()
@@ -597,7 +597,7 @@ fn spawn_player_npc(
             position: station.spawn_pos,
             look: Look::new(DEMO_ENTITY_YAW, 0.0),
             head_yaw: HeadYaw(DEMO_ENTITY_YAW),
-            entity_pose: entity::Pose(pose),
+            entity_data_pose: entity::DataPose(pose),
             ..Default::default()
         })
         .id()

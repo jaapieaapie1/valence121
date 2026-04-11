@@ -1,7 +1,11 @@
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
-use valence_entity::player::{self, PlayerModelParts};
-use valence_protocol::packets::play::client_information_c2s::ChatMode;
+use valence_entity::avatar::{
+    DataPlayerMainHand as PlayerMainHand,
+    DataPlayerModeCustomisation as PlayerModelParts,
+};
+use valence_entity::HumanoidArm;
+use valence_protocol::packets::play::client_information_c2s::{ChatMode, MainArm};
 use valence_protocol::packets::play::ClientInformationC2s;
 
 use crate::client::ViewDistance;
@@ -31,7 +35,7 @@ fn handle_client_settings(
         &mut ViewDistance,
         &mut ClientSettings,
         &mut PlayerModelParts,
-        &mut player::MainArm,
+        &mut PlayerMainHand,
     )>,
 ) {
     for packet in packets.read() {
@@ -48,8 +52,13 @@ fn handle_client_settings(
                 settings.enable_text_filtering = pkt.enable_text_filtering;
                 settings.allow_server_listings = pkt.allow_server_listings;
 
-                model_parts.set_if_neq(PlayerModelParts(u8::from(pkt.displayed_skin_parts) as i8));
-                main_arm.set_if_neq(player::MainArm(pkt.main_arm as i8));
+                model_parts
+                    .set_if_neq(PlayerModelParts(u8::from(pkt.displayed_skin_parts) as i8));
+                let new_arm = match pkt.main_arm {
+                    MainArm::Left => HumanoidArm::Left,
+                    MainArm::Right => HumanoidArm::Right,
+                };
+                main_arm.set_if_neq(PlayerMainHand(new_arm));
             }
         }
     }

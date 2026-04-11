@@ -8,6 +8,7 @@
 //! - A biome named "minecraft:plains" must exist. Otherwise, vanilla clients
 //!   will be disconnected.
 
+use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 
 use bevy_app::prelude::*;
@@ -115,7 +116,15 @@ pub struct Biome {
     pub has_precipitation: bool,
     pub temperature: f32,
     pub downfall: f32,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub temperature_modifier: Option<String>,
+    #[serde(default)]
     pub effects: BiomeEffects,
+    /// 26.1 introduced a free-form `attributes` map containing visual/audio
+    /// settings under namespaced keys (e.g. `minecraft:visual/sky_color`).
+    /// Stored opaquely so we can round-trip without modeling every variant.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub attributes: BTreeMap<String, serde_json::Value>,
 }
 
 impl Default for Biome {
@@ -125,99 +134,84 @@ impl Default for Biome {
             has_precipitation: true,
             temperature: 0.8,
             downfall: 0.4,
+            temperature_modifier: None,
             effects: BiomeEffects::default(),
+            attributes: BTreeMap::new(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct BiomeEffects {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mood_sound: Option<BiomeMoodSound>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub additions_sound: Option<BiomeAdditionsSound>,
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub music: Vec<BiomeMusic>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub music_volume: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub particle: Option<BiomeParticle>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sky_color: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub foliage_color: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub grass_color: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fog_color: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Water tint, packed as ARGB. In 26.1 the registry codec stores this as a
+    /// hex string (`"#3f76e4"`); we deserialize that into a `u32`.
+    #[serde(
+        with = "hex_color_opt",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     pub water_color: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub water_fog_color: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        with = "hex_color_opt",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub foliage_color: Option<u32>,
+    #[serde(
+        with = "hex_color_opt",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub grass_color: Option<u32>,
+    #[serde(
+        with = "hex_color_opt",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub dry_foliage_color: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub grass_color_modifier: Option<String>,
 }
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct BiomeMoodSound {
-    pub sound: Ident<String>,
-    pub tick_delay: u32,
-    pub block_search_extent: u32,
-    pub offset: f32,
-}
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct BiomeMusic {
-    pub data: BiomeMusicData,
-    pub weight: u32,
-}
+/// Serde helper for the new 26.1 hex-string color format.
+mod hex_color_opt {
+    use serde::de::{Error, Unexpected};
+    use serde::{Deserialize, Deserializer, Serializer};
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct BiomeMusicData {
-    pub sound: Ident<String>,
-    pub min_delay: u32,
-    pub max_delay: u32,
-    pub replace_current_music: bool,
-}
+    pub(super) fn deserialize<'de, D>(d: D) -> Result<Option<u32>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // Accept either a hex string ("#aabbcc" / "#aabbccdd") or a raw integer
+        // so user code that constructs colors numerically still round-trips.
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Str(String),
+            Int(u32),
+        }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct BiomeAdditionsSound {
-    pub sound: Ident<String>,
-    pub tick_chance: f32,
-}
+        match Option::<Repr>::deserialize(d)? {
+            None => Ok(None),
+            Some(Repr::Int(v)) => Ok(Some(v)),
+            Some(Repr::Str(s)) => {
+                let hex = s.strip_prefix('#').unwrap_or(&s);
+                u32::from_str_radix(hex, 16).map(Some).map_err(|_| {
+                    D::Error::invalid_value(Unexpected::Str(&s), &"hex color like \"#rrggbb\"")
+                })
+            }
+        }
+    }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct BiomeParticle {
-    pub options: BiomeParticleOptions,
-    pub probability: f32,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct BiomeParticleOptions {
-    #[serde(rename = "type")]
-    pub kind: Ident<String>,
-}
-
-impl Default for BiomeEffects {
-    /// Default will be the same as the `minecraft:plains` biome.
-    fn default() -> Self {
-        Self {
-            mood_sound: Some(BiomeMoodSound {
-                sound: ident!("minecraft:ambient.cave").into(),
-                tick_delay: 6000,
-                block_search_extent: 8,
-                offset: 2.0,
-            }),
-            music_volume: Some(1.0),
-            sky_color: Some(7907327),
-            fog_color: Some(12638463),
-            water_color: Some(4159204),
-            water_fog_color: Some(329011),
-            additions_sound: None,
-            music: Vec::new(),
-            particle: None,
-            foliage_color: None,
-            grass_color: None,
-            grass_color_modifier: None,
+    pub(super) fn serialize<S>(value: &Option<u32>, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // `skip_serializing_if = "Option::is_none"` keeps None out of the
+        // serialized form, so we only have to handle Some here.
+        match value {
+            Some(v) => s.serialize_str(&format!("#{v:08x}")),
+            None => s.serialize_none(),
         }
     }
 }

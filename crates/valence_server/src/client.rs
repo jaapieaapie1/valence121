@@ -15,7 +15,7 @@ use tracing::warn;
 use uuid::Uuid;
 use valence_binary::Encode;
 use valence_entity::attributes::{EntityAttributes, TrackedEntityAttributes};
-use valence_entity::living::Health;
+use valence_entity::living::DataHealthId as Health;
 use valence_entity::player::{Food, PlayerEntityBundle, Saturation};
 use valence_entity::query::EntityInitQuery;
 use valence_entity::tracked_data::TrackedData;
